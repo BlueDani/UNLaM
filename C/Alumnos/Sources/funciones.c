@@ -12,6 +12,7 @@ int crear_archivo_bin_alumnos(const char * path_alumnos)
 {
     int cant_registros;
 
+    // creo vector de alumnos como lote de prueba
     t_alumno alumnos[] =
     {
         {34667431, "Araujo Victoria", {21,7,1991}, 'F', {22,2,2017}, "ECO", 27, 'A', {}},
@@ -21,6 +22,7 @@ int crear_archivo_bin_alumnos(const char * path_alumnos)
         {57070551, "Tapia Julian Francisco", {23,8,1991}, 'M', {29,4,2020}, "ADM", 1, 'A', {}},
     };
 
+    // creo el archivo con el lote de prueba
     FILE *fp = fopen(path_alumnos, "wb");
     if(!fp)
     {
@@ -32,6 +34,7 @@ int crear_archivo_bin_alumnos(const char * path_alumnos)
     fwrite(alumnos, sizeof(alumnos), 1, fp);
     fclose(fp);
 
+    // seteo la cantidad de registros iniciales
     cant_registros = sizeof(alumnos)/sizeof(t_alumno);
 
     return cant_registros;
@@ -49,6 +52,7 @@ t_indice * generar_indice_alumnos(const char *path, int cant_registros,
 
     unsigned int pos = 0;
 
+    // abro archivo en modo lectura
     fp = fopen(path, "rb");
     if (!fp)
     {
@@ -57,6 +61,7 @@ t_indice * generar_indice_alumnos(const char *path, int cant_registros,
         return ERROR_2;
     }
 
+    // reservo memoria para el vector indice segun la cantidad de alumnos del archivo
     indice = (t_indice *)malloc(sizeof(t_indice) * cant_registros);
     if (!indice)
     {
@@ -65,8 +70,10 @@ t_indice * generar_indice_alumnos(const char *path, int cant_registros,
         return ERROR_2;
     }
 
+    // creo auxiliar del vector indice para poder mover el puntero sin perder el inicio
     cpy_indice = indice;
 
+    // recorro el archivo de alumnos cargando el indice
     fread(&alumno, sizeof(t_alumno), 1, fp);
     while(!feof(fp))
     {
@@ -80,6 +87,7 @@ t_indice * generar_indice_alumnos(const char *path, int cant_registros,
         fread(&alumno, sizeof(t_alumno), 1, fp);
     }
 
+    // ordeno el indice por DNI
     ordenar_seleccion(indice, cant_registros, sizeof(t_indice), comparar);
 
     fclose(fp);
@@ -140,12 +148,13 @@ int intercambiar(void *a, void *b, size_t tam)
 
 
 /******************************************************************************/
-// OPCIONES ////////////////////////////////////////////////////////////////////
+// OPCIONES DEL MENU //////////////////////////////////////////////////////////
 
 void mostrar_alumno(const void *alu)
 {
     t_alumno *alumno;
 
+    // creo titulo para mostrar los alumnos
     if(!alu)
     {
         printf("DNI      NOMBRE Y APELLIDO                                  FEC. NAC.  SEXO FEC. ING.  CARRERA CANT. MATERIAS ESTADO FEC. BAJA  \n");
@@ -153,6 +162,7 @@ void mostrar_alumno(const void *alu)
         return;
     }
 
+    // muestro alumno completo
     alumno = (t_alumno *)alu;
 
     printf("%8ld %-*.*s  %02d/%02d/%04d %4c %02d/%02d/%04d     %s %14d %6c %02d/%02d/%04d\n",
@@ -185,30 +195,37 @@ t_indice * dar_alta_alumno(t_indice *indice, int *cant_registros,
     long int pos;
     t_indice *cpy_indice;
 
+    // abro archivo en modo "append" porque siempre agregaremos las altas nuevas al final
     FILE *fp = fopen(path, "ab");
     if(!fp)
     {
         printf("ERROR: leer archivo \"alumnos.dat\".\n");
         return ERROR_2;
     }
+    // guardo el nuevo alumno en el archivo
     fwrite(alumno, sizeof(t_alumno), 1, fp);
+    // calculo la posicion que el nuevo alumno tiene en el archivo
     pos = ftell(fp)/sizeof(t_alumno)-1;
-
+    // sumo el alta en la cantidad de registros
     (*cant_registros)++;
 
+    // actualizo el indice con el alumno recien dado de alta:
+    // 1 - reservo memoria para un alumno mas
     indice = (t_indice *)realloc(indice, (sizeof(t_indice) * (*cant_registros)));
     if(!indice)
     {
         printf("ERROR: reservar memoria.\n");
         return ERROR_2;
     }
-
+    // 2 - guardo clave del alumno y su posicion en el indice
     cpy_indice = indice;
     cpy_indice+=(*cant_registros)-1;
     cpy_indice->dni = alumno->dni;
     cpy_indice->pos = pos;
 
+    // ordeno el indice de nuevo, considerando el nuevo alumno
     ordenar_seleccion(indice, *cant_registros, sizeof(t_indice), comparar);
+
     fclose(fp);
 
     return indice;
@@ -372,6 +389,7 @@ t_indice * dar_baja_alumno(t_indice *indice, int *cant_registros,
     t_alumno alumno;
     t_indice *ult_regitro = indice + *cant_registros -1;
 
+    // abro archivo para actualizarlo
     FILE *fp = fopen(path, "r+b");
     if(!fp)
     {
@@ -380,26 +398,28 @@ t_indice * dar_baja_alumno(t_indice *indice, int *cant_registros,
         return ERROR_2;
     }
 
-    // valido que no esté ya dado de baja
+    // voy a buscar el alumno en el archivo usando su posicion guardada en el indice
     fseek(fp, alu_baja->pos * sizeof(t_alumno), SEEK_SET);
     fread(&alumno, sizeof(t_alumno), 1, fp);
 
-    // actualizo archivo
+    // actualizo los campos de alumno
     alumno.estado = 'B';
     alumno.fec_baja.dia = fec_baja.dia;
     alumno.fec_baja.mes = fec_baja.mes;
     alumno.fec_baja.anio = fec_baja.anio;
 
+    // actualizo el alumno en el archivo (no se borra el registro, sino que queda como BAJA)
     fseek(fp, -1L * (long)sizeof(t_alumno), SEEK_CUR);
     fwrite(&alumno, sizeof(t_alumno), 1, fp);
 
-    // actualizo  indice
+    // actualizo  indice (de aca si se borra el alumno, se lo pisa trasladando todos los alumnos que le siguen desde su posicion en el vector)
     while(alu_baja < ult_regitro)
     {
         *alu_baja = *(alu_baja+1);
         alu_baja++;
     }
 
+    // actualizo cantidad de registros en Alta para ajustar la reserva de memoria
     (*cant_registros)--;
     indice = (t_indice *)realloc(indice, (sizeof(t_indice) * (*cant_registros)));
     if(!indice)
@@ -422,6 +442,7 @@ t_indice * buscar_alumno_dni(t_indice *indice, const char *path,
     t_alumno alumno;
     t_indice *encontrado;
 
+    // abro archivo en modo lectura
     FILE *fp = fopen(path, "rb");
     if(!fp)
     {
@@ -429,15 +450,18 @@ t_indice * buscar_alumno_dni(t_indice *indice, const char *path,
         return ERROR_2;
     }
 
+    // llamo a una busqueda binaria sobre el indice para determinar si el alumno existe entre los dados de Alta
     encontrado = busqueda_binaria(indice, alumno_a_buscar, sizeof(t_indice), cant_registros, comparar_alumnos_indice);
     if(encontrado)
     {
+        // mostrar el alumno es opcional
         if(mostrar)
         {
+            // busco y traigo el alumno en el archivo, usando su posicion que guarde en el indice
             fseek(fp, (long)encontrado->pos * (long)sizeof(t_alumno), SEEK_SET);
             fread(&alumno, sizeof(t_alumno), 1, fp);
-            mostrar(NULL);
-            mostrar(&alumno);
+            mostrar(NULL);      // para mostrar el titulo
+            mostrar(&alumno);   // para mostrar los campos de alumno debajo del titulo
         }
         fclose(fp);
         return encontrado;
@@ -488,6 +512,8 @@ void * busqueda_binaria(void* vec, const void* dato_a_buscar, unsigned tam_dato,
 int mostrar_archivo_bin_bajas(const char *path)
 {
     t_alumno alumno;
+
+    // abro archivo en modo lectura
     FILE *fp = fopen(path, "rb");
     if(!fp)
     {
@@ -495,11 +521,13 @@ int mostrar_archivo_bin_bajas(const char *path)
         return ERROR_1;
     }
 
+    // muestro el titulo con los campos de alumno
     mostrar_alumno(NULL);
 
     fread(&alumno, sizeof(t_alumno), 1, fp);
     while(!feof(fp))
     {
+        // las bajas no se deben mostrar
         if(alumno.estado == 'B')
         {
             mostrar_alumno(&alumno);
@@ -518,16 +546,19 @@ int mostrar_archivo_bin_ordenado(t_indice *indice, int cant_registros,
 {
     t_alumno alumno;
 
+    // abro archivo en modo lectura
     FILE *fp = fopen(path, "rb");
-
     if (!fp)
     {
         printf("ERROR: leer archivo \"alumnos.dat\".\n");
         return ERROR_1;
     }
 
+    // muestro el titulo con los campos de alumno
     mostrar(NULL);
 
+    // recorro archivo e indice:
+    // leo la posicion de cada alumno en el indice y lo voy a buscar al archivo para mostrarlo ordenado pero con todos sus campos
     while(cant_registros)
     {
         fseek(fp, indice->pos * sizeof(t_alumno), SEEK_SET);
@@ -604,4 +635,3 @@ int mostrar_archivo_bin_ordenado(t_indice *indice, int cant_registros,
 //
 //    return OK;
 //}
-
